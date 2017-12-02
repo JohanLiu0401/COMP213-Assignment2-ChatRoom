@@ -1,5 +1,7 @@
 import java.io.*;
 import java.net.*;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashSet;
 
 public class Server {
@@ -10,7 +12,8 @@ public class Server {
     private static final String ACCEPT = "Your username is accepted. Please type messages";
     private HashSet<String> clientNameSet = new HashSet<String>();
     private HashSet<PrintWriter> clientWriterSet = new HashSet<PrintWriter>();
-
+    String[] commands = {"\\help: List all the commands that can be sent", "\\quit: Quit the chat room", "\\serverTime: Server total runtime", "\\clientTime: The time you have been in the chat room", "\\serverIP: Server IP adderss", "\\clientNumber: Total number of clients currently in the chat room"};
+    private static long serverStartTime;
     public static void main(String[] args) throws IOException {
         Server server = new Server();
         server.start();
@@ -21,6 +24,7 @@ public class Server {
         System.out.println("Server at "+InetAddress.getLocalHost()+" is waiting for connection...");
         Socket socket;
         Thread thread;
+        serverStartTime = System.currentTimeMillis();
         //Waiting for connection all the time.
         try{
             while(true) {
@@ -56,9 +60,11 @@ public class Server {
 
     class HandleSession implements Runnable {
         private String clientName;
+        private long clientStartTime;
         private Socket socket;
-        BufferedReader in = null;
-        PrintWriter out = null;
+        private BufferedReader in = null;
+        private PrintWriter out = null;
+
         HandleSession(Socket socket) {
             this.socket = socket;
         }
@@ -109,6 +115,7 @@ public class Server {
                 out.println("Sorry, this usrename is unavailable");
             }
             out.println(ACCEPT);
+            clientStartTime = System.currentTimeMillis();
             broadcast(clientName + " has entered the chat");
             System.out.println(clientName + " has entered the chat");
         }
@@ -121,24 +128,59 @@ public class Server {
                     break;
                 }
                 if(line.startsWith("\\")){
-
+                    if(processClientRequest(line)) {
+                        break;
+                    }
                 }
                 else {
-                    broadcast(clientName + " said: " + line);
+                    SimpleDateFormat df = new SimpleDateFormat("HH:mm:ss");
+                    broadcast(clientName + "(" + df.format(new Date()) + "): " + line);
                 }
             }
         }
 
+        boolean processClientRequest(String command) {
+            boolean isQuit = false;
+            switch(command){
+                case "\\quit":
+                    isQuit = true;
+                    break;
+                case "\\help": 
+                    for(String c : commands){
+                        out.println("Command " + c);
+                    }
+                    break;
+                case "\\serverTime":
+                    long serverRunTime = (System.currentTimeMillis()-serverStartTime)/1000/60;
+                    out.println("server has run for " + serverRunTime + " minutes");
+                    break;
+                case "\\clientTime":
+                    long clientRunTime = (System.currentTimeMillis()-clientStartTime)/1000/60;
+                    out.println("you has been in chat room for " + clientRunTime + " minutes");
+                    break;
+                case "\\serverIP":
+                    InetAddress ip = socket.getLocalAddress();
+                    out.println("server IP: " + ip);
+                    break;
+                case "\\clientNumber":
+                    out.println("client numbers: " + clientNameSet.size());
+                    break;
+                default:
+                    out.println("Invalid command");
+            }
+            return isQuit;
+        }
 
         private void closeConnection() {
             if(clientName != null) {
-                broadcast(clientName + " has left the chat.");
                 clientNameSet.remove(clientName);
             }
             if(out != null){
                 clientWriterSet.remove(out);
             }
 
+            broadcast(clientName + " has left the chat.");
+            
             try{
                 socket.close();
                 System.out.println("The connection of " + clientName + " is closed" );
