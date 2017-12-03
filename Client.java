@@ -1,7 +1,4 @@
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.Socket;
 
 public class Client {
@@ -37,7 +34,7 @@ class ClientInstance {
             out = new PrintWriter(socket.getOutputStream(), true);
             isServerConnected = true;
         }
-        catch(IOException e) {
+        catch (IOException e) {
             System.err.println("Exception in connection:" + e.getMessage());
         }
         profileSetUp();
@@ -47,11 +44,11 @@ class ClientInstance {
         String message = null;
         try {
             BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
-            if(hint != null) {
+            if (hint != null) {
                System.out.println(hint);
             }
             message = reader.readLine();
-            if(!isAllowedToChat) {
+            if (!isAllowedToChat) {
                 clientName = message;
             }
         } catch (Exception e) {
@@ -62,17 +59,17 @@ class ClientInstance {
 
     private void profileSetUp() {
         String line = null;
-        while(!isAllowedToChat){
+        while (!isAllowedToChat) {
             try {
                 line = in.readLine();
             }
-            catch(IOException e) {
+            catch (IOException e) {
                 System.err.println("Exception in profiles set up:" + e.getMessage());
             }
-            if(line.startsWith(WELCOME)) {
+            if (line.startsWith(WELCOME)) {
                 out.println(getClientInput(WELCOME));
             }
-            else if(line.startsWith(ACCEPT)) {
+            else if (line.startsWith(ACCEPT)) {
                 isAllowedToChat = true;
                 System.out.println(ACCEPT);
                 System.out.println("To see a list of commands, please type \\help.");
@@ -86,7 +83,7 @@ class ClientInstance {
     private void handleOutgoingMessages() {
         Thread sendThread = new Thread(new Runnable() {
             public void run() {
-                while(isServerConnected) {
+                while (isServerConnected) {
                     out.println(getClientInput(null));
                 }
             }
@@ -97,18 +94,18 @@ class ClientInstance {
     public void handleIncomingMessages() {
         Thread listenThread = new Thread(new Runnable() {
             public void run() {
-                while(isServerConnected) {
+                while (isServerConnected) {
                     String line = null;
-                    try{
+                    try {
                         line = in.readLine();
-                        if(line == null){
+                        if (line == null) {
                             isServerConnected = false;
                             System.err.println("Disconnected from the server.");
                             closeConnection();
                         }
                         System.out.println(line);
                     }
-                    catch(IOException e) {
+                    catch (IOException e) {
                         isServerConnected = false;
                         System.err.println("Exception in handleIncominMgessages()");
                         break;
@@ -124,7 +121,7 @@ class ClientInstance {
             socket.close();
             System.exit(0);
         }
-        catch(IOException e) {
+        catch (IOException e) {
             System.err.println("Exception in closing the socket.");
             System.err.println(e.getMessage());
         }

@@ -1,19 +1,19 @@
 import java.io.*;
 import java.net.*;
+import java.util.*;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.HashSet;
 
 public class Server {
 
     private ServerSocket ss;
     private int PORT_NUMBER = 4396;
-    private static final String WELCOME = "Please type your username.";
-    private static final String ACCEPT = "Your username is accepted. Please type messages";
+    private static long serverStartTime;
     private HashSet<String> clientNameSet = new HashSet<String>();
     private HashSet<PrintWriter> clientWriterSet = new HashSet<PrintWriter>();
+    private static final String WELCOME = "Please type your username.";
+    private static final String ACCEPT = "Your username is accepted. Please type messages";
     String[] commands = {"\\help: List all the commands that can be sent", "\\quit: Quit the chat room", "\\serverTime: Server total runtime", "\\clientTime: The time you have been in the chat room", "\\serverIP: Server IP adderss", "\\clientNumber: Total number of clients currently in the chat room"};
-    private static long serverStartTime;
+
     public static void main(String[] args) throws IOException {
         Server server = new Server();
         server.start();
@@ -27,22 +27,22 @@ public class Server {
         serverStartTime = System.currentTimeMillis();
         //Waiting for connection all the time.
         try{
-            while(true) {
+            while (true) {
                 socket = ss.accept();
                 thread = new Thread(new HandleSession(socket));
                 thread.start();
             }
         }
-        catch(Exception e) {
+        catch (Exception e) {
             System.out.println(e.getMessage());
         }
-        finally{
+        finally {
             shutDown();
         }
     }
 
     private void shutDown() {
-        try{
+        try {
             ss.close();
             System.out.println("The server has shut down.");
         } 
@@ -52,8 +52,8 @@ public class Server {
         }
     }
 
-    private void broadcast(String message){
-        for(PrintWriter writer : clientWriterSet) {
+    private void broadcast(String message) {
+        for (PrintWriter writer : clientWriterSet) {
             writer.println(message);
         }
     }
@@ -75,7 +75,7 @@ public class Server {
                 getClientUsername();
                 listenClientMessage();
             }
-            catch(IOException e) {
+            catch (IOException e) {
                 System.out.println(e.getMessage());
             }
             finally {
@@ -87,48 +87,48 @@ public class Server {
             try {
                 in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 out = new PrintWriter(socket.getOutputStream(),true);
-                clientWriterSet.add(out);
                 System.out.println("One connetion is established");
             }
-            catch(IOException e) {
+            catch (IOException e) {
                 System.out.println("Exception in createStreams: "+e);
             }
         }
 
         private void getClientUsername() {
-            while(true) {
+            while (true) {
                 out.println(WELCOME);
                 try {
                     clientName = in.readLine();
                 }
-                catch(IOException e) {
+                catch (IOException e) {
                     System.out.println("Exception in getClientUsername: "+e);
                 }
     
-                if(clientName == null) {
+                if (clientName == null) {
                     return;
                 }
-                if(!clientNameSet.contains(clientName)) {
+                if (!clientNameSet.contains(clientName)) {
                     clientNameSet.add(clientName);
                     break;
                 }
                 out.println("Sorry, this usrename is unavailable");
             }
             out.println(ACCEPT);
-            clientStartTime = System.currentTimeMillis();
             broadcast(clientName + " has entered the chat");
+            clientStartTime = System.currentTimeMillis();
+            clientWriterSet.add(out);
             System.out.println(clientName + " has entered the chat");
         }
 
         private void listenClientMessage() throws IOException {
             String line;
-            while(in != null) {//用 true 可以吗
+            while (in != null) {
                 line = in.readLine();
-                if(line == null) {
+                if (line == null) {
                     break;
                 }
-                if(line.startsWith("\\")){
-                    if(processClientRequest(line)) {
+                if (line.startsWith("\\")) {
+                    if (processClientRequest(line)) {
                         break;
                     }
                 }
@@ -141,12 +141,12 @@ public class Server {
 
         boolean processClientRequest(String command) {
             boolean isQuit = false;
-            switch(command){
+            switch (command) {
                 case "\\quit":
                     isQuit = true;
                     break;
                 case "\\help": 
-                    for(String c : commands){
+                    for (String c : commands) {
                         out.println("Command " + c);
                     }
                     break;
@@ -172,20 +172,20 @@ public class Server {
         }
 
         private void closeConnection() {
-            if(clientName != null) {
+            if (clientName != null) {
                 clientNameSet.remove(clientName);
             }
-            if(out != null){
+            if (out != null) {
                 clientWriterSet.remove(out);
             }
 
             broadcast(clientName + " has left the chat.");
             
-            try{
+            try {
                 socket.close();
                 System.out.println("The connection of " + clientName + " is closed" );
             }
-            catch(IOException e) {
+            catch (IOException e) {
                 System.err.println("Exception when closing the socket");
                 System.err.println(e.getMessage());
             }
