@@ -7,7 +7,7 @@ public class Server {
 
     private ServerSocket ss;
     private int PORT_NUMBER = 4396;
-    private static long serverStartTime;
+    private long serverStartTime;
     private HashSet<String> clientNameSet = new HashSet<String>();
     private HashSet<PrintWriter> clientWriterSet = new HashSet<PrintWriter>();
     private static final String WELCOME = "Please type your username.";
@@ -21,10 +21,10 @@ public class Server {
 
     private void start() throws IOException {
         ss = new ServerSocket(PORT_NUMBER);
+        serverStartTime = System.currentTimeMillis();
         System.out.println("Server at "+InetAddress.getLocalHost()+" is waiting for connection...");
         Socket socket;
         Thread thread;
-        serverStartTime = System.currentTimeMillis();
         //Waiting for connection all the time.
         try{
             while (true) {
@@ -75,7 +75,7 @@ public class Server {
                 getClientUsername();
                 listenClientMessage();
             }
-            catch (IOException e) {
+            catch (Exception e) {
                 System.out.println(e.getMessage());
             }
             finally {
@@ -114,8 +114,8 @@ public class Server {
                 out.println("Sorry, this usrename is unavailable");
             }
             out.println(ACCEPT);
-            broadcast(clientName + " has entered the chat");
             clientStartTime = System.currentTimeMillis();
+            broadcast(clientName + " has entered the chat");
             clientWriterSet.add(out);
             System.out.println(clientName + " has entered the chat");
         }
@@ -174,13 +174,19 @@ public class Server {
         private void closeConnection() {
             if (clientName != null) {
                 clientNameSet.remove(clientName);
+                for(String name: clientNameSet) {
+                    System.out.println(name);            
+                }
             }
             if (out != null) {
                 clientWriterSet.remove(out);
+                System.out.println(clientWriterSet.size());
             }
 
-            broadcast(clientName + " has left the chat.");
-            
+            if(clientName != null){
+                broadcast(clientName + " has left the chat.");
+            }
+
             try {
                 socket.close();
                 System.out.println("The connection of " + clientName + " is closed" );
