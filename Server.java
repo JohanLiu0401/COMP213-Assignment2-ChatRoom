@@ -4,7 +4,8 @@ import java.util.*;
 import java.text.SimpleDateFormat;
 
 /**
- * public Server is used to handle the session with clients.
+ * public Server is used to act as chat room server. It contains members: ss, PORT_NUMBER, serverStartTime, clientNameSet,
+ * clientWriterSet, WELCOME, ACCEPT, commands, emoji, and methods: start(), shutDown(), broadcast(String message).
  * 
  * @author Zhiyong Liu
  */
@@ -18,7 +19,7 @@ public class Server {
     /**
      * The port number of server.
      */
-    private int PORT_NUMBER = 4396;
+    private static final int PORT_NUMBER = 4396;
 
     /**
      * The start time of server.
@@ -26,12 +27,12 @@ public class Server {
     private long serverStartTime;
 
     /**
-     * Store all the client name.
+     * Store all the client names.
      */
     private HashSet<String> clientNameSet = new HashSet<String>();
 
     /**
-     * Store all the output stream.
+     * Store all the output streams.
      */
     private HashSet<PrintWriter> clientWriterSet = new HashSet<PrintWriter>();
 
@@ -46,35 +47,45 @@ public class Server {
     private static final String ACCEPT = "Your username is accepted. Please type messages";
 
     /**
-     * The list of commands available for clients.
+     * The list of commands available to clients.
      */
-    String[] commands = {"\\help: List all the commands that can be sent", "\\quit: Quit the chat room", "\\serverTime: Server total runtime", "\\clientTime: The time you have been in the chat room", "\\serverIP: Server IP adderss", "\\clientNumber: Total number of clients currently in the chat room","\\emoji: The emoji you can send"};
+    private String[] commands = {"\\help: List all the commands that can be sent", "\\quit: Quit the chat room", "\\serverTime: Server total runtime", "\\clientTime: The time you have been in the chat room", "\\serverIP: Server IP adderss", "\\clientNumber: Total number of clients currently in the chat room","\\emoji: The emoji you can send"};
 
     /**
-     * The list of emoji available for clients.
+     * The list of emoji available to clients.
      */
-    String[] emoji = {"~^o^~", "\\(╯-╰)/", "//(ㄒoㄒ)//", "(^_^)/~~"};
+    private String[] emoji = {"~^o^~", "\\(╯-╰)/", "//(ㄒoㄒ)//", "(^_^)/~~"};
 
     /**
      * The entry of Server program.
      * 
      * @param args the information from console
+     * @throws IOException if an I/O error occurs
      */
     public static void main(String[] args) throws IOException {
-        Server server = new Server();
-        server.start();
+        try{
+            Server server = new Server();
+            server.start();
+        }
+        catch (BindException e) {
+            System.out.println("The port number already has been used.");
+            System.exit(0);
+        }
     }
 
     /**
-     * Star the server.
+     * Start the chat room server.
+     * 
+     * @throws IOException if an I/O error occurs
      */
     private void start() throws IOException {
         ss = new ServerSocket(PORT_NUMBER);
         serverStartTime = System.currentTimeMillis();
-        System.out.println("Server at "+InetAddress.getLocalHost()+" is waiting for connection...");
+        System.out.println("Server at "+InetAddress.getLocalHost()+" is waiting for connection...\nInput \\quit to close the chat room server.");
         Socket socket;
         Thread thread;
-        try{
+        waitQuit();
+        try {
             while (true) {
                 socket = ss.accept();
                 thread = new Thread(new HandleSession(socket));
@@ -90,12 +101,42 @@ public class Server {
     }
 
     /**
-     * Shut down the server.
+     * Wait for input command to close the server.
+     * <br>Additional feature: The server can be closed by command.
+     */
+    private void waitQuit() {
+        Thread waitQuitThread = new Thread(new Runnable(){
+            public void run() {
+                BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
+                String quitCommand = null;
+                try{
+                    while(in != null) {
+                        quitCommand = in.readLine();
+                        if (quitCommand.equals("\\quit")) {
+                            broadcast("The server is shut down.");
+                            System.exit(0);
+                        }
+                        else {
+                            System.out.println("command input wrong.");
+                        }
+                    }
+                }
+                catch(IOException e) {
+                    System.err.println("IOException in waitQuit():\n" + e.getMessage());
+                }
+            }
+        });
+        waitQuitThread.start();
+    }
+
+    /**
+     * Shut down the chat room server.
      */
     private void shutDown() {
         try {
             ss.close();
             System.out.println("The server has shut down.");
+            System.exit(0);
         } 
         catch (Exception e) {
             System.out.println("Problem with shutting down the server.");
@@ -105,6 +146,8 @@ public class Server {
 
     /**
      * Broadcast the message to all clients.
+     * <br>Additional feature: It will print the time when the message
+     * is broadcast or someone enter the chat room.
      * 
      * @param message the message to broadcast
      */
@@ -116,17 +159,52 @@ public class Server {
         System.out.println("(Time: " + df.format(new Date()) + ") " + message);
     }
 
+    /**
+     * HandleSession is an inner class of Server. It contains members: clientName, clientStartName, socket, in, out,
+     * and methods: run(), createStreams(), getClientUsername(), listenClientMessage(), processClientRequest(String command),
+     * sendEmoji(), closeConnection().
+     * 
+     * @author Zhiyong Liu
+     */
     class HandleSession implements Runnable {
+
+        /**
+         * The name of client in this session.
+         */
         private String clientName;
+
+        /**
+         * The time when client enters the chat room.
+         */
         private long clientStartTime;
+
+        /**
+         * The socket to connect to the client.
+         */
         private Socket socket;
+
+        /**
+         * The input stream of server.
+         */
         private BufferedReader in = null;
+
+        /**
+         * The output stream of server.
+         */
         private PrintWriter out = null;
 
+        /**
+         * The constructor of HandleSession class.
+         * 
+         * @param socket the socket for the client
+         */
         HandleSession(Socket socket) {
             this.socket = socket;
         }
 
+        /**
+         * Configure and start the session with client.
+         */
         public void run() {
             try {
                 createStreams();
@@ -134,13 +212,16 @@ public class Server {
                 listenClientMessage();
             }
             catch (Exception e) {
-                System.out.println(e.getMessage());
+                System.err.println("Some Exception occurs:\n" + e.getMessage());
             }
             finally {
                 closeConnection();
             }
         }
 
+        /**
+         * Create the input and output stream of server.
+         */
         private void createStreams() {
             try {
                 in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -148,10 +229,14 @@ public class Server {
                 System.out.println("One connetion is established");
             }
             catch (IOException e) {
-                System.err.println("Exception in createStreams: "+e);
+                System.err.println("Exception in createStreams:\n" + e.getMessage());
             }
         }
 
+        /**
+         * Get the username from client.
+         * <br>Additional feature: It can also test whether the input name is empty.
+         */
         private void getClientUsername() {
             while (true) {
                 out.println(WELCOME);
@@ -159,16 +244,23 @@ public class Server {
                     clientName = in.readLine();
                 }
                 catch (IOException e) {
-                    System.err.println("Exception in getClientUsername: "+e);
+                    System.err.println("Exception in getClientUsername:\n" + e.getMessage());
                 }
     
                 if (clientName == null) {
                     return;
                 }
                 
-                if (!clientNameSet.contains(clientName)) {
-                    clientNameSet.add(clientName);
-                    break;
+                if (clientName.equals("")) {
+                    out.println("Sorry, you can not set the name as empty");
+                    continue;
+                }
+                
+                synchronized(clientNameSet){
+                    if (!clientNameSet.contains(clientName)) {
+                        clientNameSet.add(clientName);
+                        break;
+                    }
                 }
                 out.println("Sorry, this usrename is unavailable");
             }
@@ -178,6 +270,11 @@ public class Server {
             clientWriterSet.add(out);
         }
 
+        /**
+         * Listen the message from client.
+         * 
+         * @throws IOException if an I/O error occurs
+         */
         private void listenClientMessage() throws IOException {
             String line = null;
             while (true) {
@@ -196,6 +293,16 @@ public class Server {
             }
         }
 
+        /**
+         * Process the command from client.
+         * <br>Additional feature:
+         * <br>1. It can test if the command is valid.
+         * <br>2. It can allow client to send four different emojis.
+         * 
+         * @param command the command user input
+         * @throws IOException if an I/O error occurs
+         * @return boolean
+         */
         private boolean processClientRequest(String command) throws IOException {
             boolean isQuit = false;
             switch (command) {
@@ -206,6 +313,7 @@ public class Server {
                     for (String c : commands) {
                         out.println("Command " + c);
                     }
+                    out.println("------ case sensitive ------");
                     break;
                 case "\\serverTime":
                     long serverRunTime = (System.currentTimeMillis()-serverStartTime)/1000/60;
@@ -231,6 +339,12 @@ public class Server {
             return isQuit;
         }
 
+        /**
+         * Process the request for sending emoji from client.
+         * It is an additional command which allows client to send emoji.
+         * 
+         * @throws IOException if an I/O error occurs
+         */
         private void sendEmoji() throws IOException {
             out.println("Please select the emoji you want to send: (enter the number)\n1. Greet\n2. Bored\n3. Sad\n4. Bye");
             boolean isValid = false;
@@ -262,6 +376,9 @@ public class Server {
             }
         }
 
+        /**
+         * Close the session with the client.
+         */
         private void closeConnection() {
             if (clientName != null) {
                 clientNameSet.remove(clientName);

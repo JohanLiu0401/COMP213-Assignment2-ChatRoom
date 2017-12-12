@@ -2,7 +2,10 @@ import java.io.*;
 import java.net.Socket;
 
 /**
- * public Client is used to connect to the chat room.
+ * public Client is used to acted as a chat room client.
+ * It is the entry of client program.
+ * 
+ * @author Zhiyong Liu
  */
 public class Client {
 
@@ -10,6 +13,7 @@ public class Client {
      * The entry of Client Program.
      * 
      * @param args the information from console
+     * @throws Exception if some exception occurs
      */
     public static void main(String[] args) throws Exception {
         ClientInstance client = new ClientInstance();
@@ -19,13 +23,16 @@ public class Client {
 
 /**
  * ClientInstance is used by Client.
+ * <br>It contains members: WELCOME, ACCEPT, socket, in, out, isServerConnected, isAllowedToChat,
+ * and methods: start(), establishConnection(), getClientInput(String hint), profileSetUp(),
+ * handleOutgoingMessages(), handleIncomingMessages(), closeConnection().
  */
 class ClientInstance {
 
     /**
      * The port number of client.
      */
-    private int portNumber = 4396;
+    private static final int PORT_NUMBER = 4396;
 
     /**
      * The information of welcome.
@@ -63,7 +70,7 @@ class ClientInstance {
     private boolean isAllowedToChat = false;
 
     /**
-     * Start the whole process of client.
+     * Start the whole process of client program.
      */
     public void start() {
         establishConnection();
@@ -72,20 +79,32 @@ class ClientInstance {
     }
 
     /**
-     * Establish the connection to the server
+     * Establish the connection to the server.
+     * <br>Additional feature: it can ask user to retype the IP address in two situations:
+     * <br>1. The input IP address is not valid.
+     * <br>2. Server goes offline when user inputs username.
      */
     private void establishConnection() {
-        String serverAddress = getClientInput("What is the address of the server that you wish to connect to?");
-        try {
-            socket = new Socket(serverAddress, portNumber);
-            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            out = new PrintWriter(socket.getOutputStream(), true);
-            isServerConnected = true;
+        boolean isEnterChatRoom = false;
+        while (!isEnterChatRoom) {
+            String serverAddress = getClientInput("What is the address of the server that you wish to connect to?");
+            try {
+                socket = new Socket(serverAddress, PORT_NUMBER);
+                in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                out = new PrintWriter(socket.getOutputStream(), true);
+                isServerConnected = true;
+                profileSetUp();
+                isEnterChatRoom = true;
+            }
+            catch (IOException e) {
+                System.err.println("IOException in connection: " + e.getMessage());
+            }
+            catch (NullPointerException e) {
+                //Catch the NullPointerException in profileSetUp().
+                System.err.println("NullPointerException in profileSetUP(): " + e.getMessage());
+                System.err.println("The server may has been shut down.");
+            }
         }
-        catch (IOException e) {
-            System.err.println("Exception in connection:" + e.getMessage());
-        }
-        profileSetUp();
     }
 
     /**
@@ -104,15 +123,18 @@ class ClientInstance {
             message = reader.readLine();
         } 
         catch (IOException e) {
-            System.err.println("Exception in getClientInput()" + e.getMessage());
+            System.err.println("Exception in getClientInput():" + e.getMessage());
         }
         return message;
     }
 
     /**
      * Set the name information before being allowed to chat.
+     * <br>Additional feature: it can test whether the server is offline when user inputs name.
+     * If server goes offline, after user input username, it will throw NullPointerException to the establishConnection()
+     * and ask user to retype the ip address they want to connect.
      */
-    private void profileSetUp() {
+    private void profileSetUp() throws NullPointerException {
         String line = null;
         while (!isAllowedToChat) {
             try {
@@ -122,12 +144,13 @@ class ClientInstance {
                 System.err.println("Exception in profiles set up:" + e.getMessage());
             }
             if (line.startsWith(WELCOME)) {
+                // If server is offline at this time, it will throw NullPointerException.
                 out.println(getClientInput(WELCOME));
             }
             else if (line.startsWith(ACCEPT)) {
                 isAllowedToChat = true;
                 System.out.println(ACCEPT);
-                System.out.println("To see a list of commands, please type \\help.");
+                System.out.println("------ Command List: \\help   Quit: \\quit ------");
             }
             else {
                 System.out.println(line);
@@ -152,7 +175,7 @@ class ClientInstance {
     /**
      * Receive the incoming messages from server.
      */
-    public void handleIncomingMessages() {
+    private void handleIncomingMessages() {
         Thread listenThread = new Thread(new Runnable() {
             public void run() {
                 while (isServerConnected) {
@@ -168,7 +191,7 @@ class ClientInstance {
                     }
                     catch (IOException e) {
                         isServerConnected = false;
-                        System.err.println("Exception in handleIncominMgessages()");
+                        System.err.println("Exception in handleIncominMgessages():" + e.getMessage());
                         break;
                     }
                 }
@@ -190,5 +213,4 @@ class ClientInstance {
             System.err.println(e.getMessage());
         }
     }
-
 }
